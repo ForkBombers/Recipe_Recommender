@@ -1,6 +1,7 @@
 import mongodb from "mongodb";
 import nodemailer from "nodemailer";
 import password from "./mail_param.js";
+
 const pass = password.password;
 const GMAIL = process.env.GMAIL;
 
@@ -8,7 +9,8 @@ const ObjectId = mongodb.ObjectId;
 let recipes;
 let ingredients;
 let users;
-//Function to connect to DB
+
+// Function to connect to the database
 export default class RecipesDAO {
   static async injectDB(conn) {
     if (recipes) {
@@ -19,147 +21,110 @@ export default class RecipesDAO {
       ingredients = await conn.db(process.env.RECIPES_NS).collection("ingredient_list");
       users = await conn.db(process.env.RECIPES_NS).collection("user");
     } catch (e) {
-      console.error(
-        `Unable to establish a collection handle in recipesDAO: ${e}`
-      );
+      console.error(`Unable to establish a collection handle in recipesDAO: ${e}`);
     }
   }
 
+  // Function to get a user
   static async getUser({ filters = null } = {}) {
     let query;
     let cursor;
-    let user;
-    query = { "userName": filters.userName }
+
     if (filters) {
+      query = { "userName": filters.userName };
       cursor = await users.findOne(query);
-      if (cursor.userName) {
-        if (cursor.password == filters.password) {
-          return { success: true, user: cursor }
+      if (cursor && cursor.userName) {
+        if (cursor.password === filters.password) {
+          return { success: true, user: cursor };
         } else {
-          return { success: false }
+          return { success: false };
         }
       } else {
-        return { success: false }
+        return { success: false };
       }
     }
   }
 
+  // Function to add a user
   static async addUser({ data = null } = {}) {
     let query;
     let cursor;
-    let user;
-    query = { "userName": data.userName }
-    console.log(query)
+
     if (data) {
+      query = { "userName": data.userName };
       cursor = await users.findOne(query);
-      console.log(cursor)
-      if (cursor!==null) {
-        return {success: false}
+      if (cursor) {
+        return { success: false }; // User already exists
       } else {
-        const res = await users.insertOne(data)
-        return { success: true }
+        await users.insertOne(data);
+        return { success: true }; // User added successfully
       }
-    }
-  }
-  
-  //function to get bookmarks
-  static async getBookmarks(userName) {
-    let query;
-    let cursor;
-    let user;
-    query = { "userName": userName }
-    console.log(query)
-    try {
-      cursor = await users.findOne(query);
-      if (cursor.userName) {
-        return cursor.bookmarks;
-      } else {
-        return { bookmarks: [] }
-      }
-    } catch (e) {
-      console.log(`error: ${e}`)
     }
   }
 
-  //Function to get recipe by name
+  // Function to get bookmarks
+  static async getBookmarks(userName) {
+    let query = { "userName": userName };
+    try {
+      let cursor = await users.findOne(query);
+      if (cursor && cursor.userName) {
+        return cursor.bookmarks || []; // Return bookmarks or an empty array
+      } else {
+        return { bookmarks: [] };
+      }
+    } catch (e) {
+      console.log(`Error: ${e}`);
+    }
+  }
+
+  // Function to get recipe by name
   static async getRecipeByName({ filters = null } = {}) {
     let query;
-    if (filters) {
-      if ("recipeName" in filters) {
-        const words = filters["recipeName"].split(" ");
-        const regexPattern = words.map(word => `(?=.*\\b${word}\\b)`).join('');
-        const regex = new RegExp(regexPattern, "i");
-        query = { "TranslatedRecipeName": { $regex: regex } };
-        // query["Cuisine"] = "Indian";
-      }
-      let recipesList;
+
+    if (filters && "recipeName" in filters) {
+      const words = filters["recipeName"].split(" ");
+      const regexPattern = words.map(word => `(?=.*\\b${word}\\b)`).join('');
+      query = { "TranslatedRecipeName": { $regex: new RegExp(regexPattern, "i") } };
+      
       try {
-        recipesList = await recipes
+        const recipesList = await recipes
           .find(query)
-          .collation({ locale: "en", strength: 2 }).toArray();
-        return { recipesList }
+          .collation({ locale: "en", strength: 2 })
+          .toArray();
+        return { recipesList };
       } catch (e) {
         console.error(`Unable to issue find command, ${e}`);
-        return { recipesList: [], totalNumRecipess: 0 };
+        return { recipesList: [], totalNumRecipes: 0 };
       }
     }
-
   }
 
-  //Function to get the Recipe List
-  static async getRecipes({
-    filters = null,
-    page = 0,
-    recipesPerPage = 10,
-  } = {}) {
-    let query;
-    if (filters) {
-      if ("CleanedIngredients" in filters) {
-        var str = "(?i)";
-
-        for (var i = 0; i < filters["CleanedIngredients"].length; i++) {
-          const str1 = filters["CleanedIngredients"][i];
-          str += "(?=.*" + str1 + ")";
-        }
-        console.log(str);
-        query = { "Cleaned-Ingredients": { $regex: str } };
-        query["Cuisine"] = filters["Cuisine"];
-        console.log(query);
-        var email = filters["Email"];
-        var flagger = filters["Flag"];
-        console.log(email);
-        console.log(flagger);
-      }
+  // Function to get the recipe list
+  static async getRecipes({ filters = null, page = 0, recipesPerPage = 10 } = {}) {
+    let query = {};
+    
+    if (filters && "CleanedIngredients" in filters) {
+      const ingredientsRegex = filters["CleanedIngredients"].map(ingredient => `(?=.*${ingredient})`).join('');
+      query["Cleaned-Ingredients"] = { $regex: new RegExp(ingredientsRegex, "i") };
+      query["Cuisine"] = filters["Cuisine"];
     }
 
     let cursor;
 
     try {
-      cursor = await recipes
-        .find(query)
-        .collation({ locale: "en", strength: 2 });
-    } catch (e) {
-      console.error(`Unable to issue find command, ${e}`);
-      return { recipesList: [], totalNumRecipess: 0 };
-    }
-
-    const displayCursor = cursor.limit(recipesPerPage);
-    try {
+      cursor = await recipes.find(query).collation({ locale: "en", strength: 2 });
+      const displayCursor = cursor.limit(recipesPerPage);
       const recipesList = await displayCursor.toArray();
       const totalNumRecipes = await recipes.countDocuments(query);
 
-      var str_mail = "";
-      for (var j = 1; j <= recipesList.length; j++) {
-        str_mail += "\nRecipe " + j + ": \n";
-        str_mail += recipesList[j - 1]["TranslatedRecipeName"] + "\n";
-        str_mail +=
-          "Youtube Link: https://www.youtube.com/results?search_query=" +
-          recipesList[j - 1]["TranslatedRecipeName"].replace(/ /g, "+") +
-          "\n\n";
-      }
+      // Sending email with recipe recommendations if required
+      if (filters && filters.Flag === "true") {
+        const email = filters["Email"];
+        const str_mail = recipesList.map((recipe, index) => 
+          `Recipe ${index + 1}: \n${recipe["TranslatedRecipeName"]}\nYoutube Link: https://www.youtube.com/results?search_query=${recipe["TranslatedRecipeName"].replace(/ /g, "+")}\n\n`
+        ).join("");
 
-      if (flagger == "true") {
-        var transporter = nodemailer.createTransport({
+        const transporter = nodemailer.createTransport({
           host: "smtp.gmail.com",
           port: 465,
           secure: true,
@@ -169,7 +134,7 @@ export default class RecipesDAO {
           },
         });
 
-        var mailOptions = {
+        const mailOptions = {
           from: GMAIL,
           to: email,
           subject: "Recommended Recipes! Enjoy your meal!!",
@@ -187,87 +152,69 @@ export default class RecipesDAO {
 
       return { recipesList, totalNumRecipes };
     } catch (e) {
-      console.error(
-        `Unable to convert cursor to array or problem counting documents, ${e}`
-      );
+      console.error(`Unable to convert cursor to array or problem counting documents, ${e}`);
       return { recipesList: [], totalNumRecipes: 0 };
     }
   }
 
-  //Function to get the list of Cuisines
+  // Function to get the list of cuisines
   static async getCuisines() {
-    let cuisines = [];
     try {
-      cuisines = await recipes.distinct("Cuisine");
+      const cuisines = await recipes.distinct("Cuisine");
       return cuisines;
     } catch (e) {
       console.error(`Unable to get cuisines, ${e}`);
-      return cuisines;
+      return [];
     }
   }
 
   // Function to add a recipe
   static async addRecipe(recipe) {
-    console.log("Inside addRecipe");
-    console.log(recipe);
-    let inputRecipe = {};
-    inputRecipe["TranslatedRecipeName"] = recipe["recipeName"];
-    inputRecipe["TotalTimeInMins"] = recipe["cookingTime"];
-    inputRecipe["Diet-type"] = recipe["dietType"];
-    inputRecipe["Recipe-rating"] = recipe["recipeRating"];
-    inputRecipe["Cuisine"] = recipe["cuisine"];
-    inputRecipe["image-url"] = recipe["imageURL"];
-    inputRecipe["URL"] = recipe["recipeURL"];
-    inputRecipe["TranslatedInstructions"] = recipe["instructions"];
-    var ingredients = "";
-    for (var i = 0; i < recipe["ingredients"].length; i++) {
-      ingredients += recipe["ingredients"][i] + "%";
-    }
-    inputRecipe["Cleaned-Ingredients"] = ingredients;
-    var restaurants = "";
-    var locations = "";
-    for (var j = 0; j < recipe["restaurants"].length; j++) {
-      restaurants += recipe["restaurants"][j] + "%";
-      locations += recipe["locations"][j] + "%";
-    }
-    inputRecipe["Restaurant"] = restaurants;
-    inputRecipe["Restaurant-Location"] = locations;
-    console.log("Input Recipe");
-    console.log(inputRecipe);
-    let response = {};
-    try{
-      response = await recipes.insertOne(inputRecipe);
+    let inputRecipe = {
+      TranslatedRecipeName: recipe["recipeName"],
+      TotalTimeInMins: recipe["cookingTime"],
+      "Diet-type": recipe["dietType"],
+      "Recipe-rating": recipe["recipeRating"],
+      Cuisine: recipe["cuisine"],
+      "image-url": recipe["imageURL"],
+      URL: recipe["recipeURL"],
+      TranslatedInstructions: recipe["instructions"],
+      "Cleaned-Ingredients": recipe["ingredients"].join("%"),
+      Restaurant: recipe["restaurants"].join("%"),
+      "Restaurant-Location": recipe["locations"].join("%"),
+    };
+
+    try {
+      const response = await recipes.insertOne(inputRecipe);
       return response;
-    } catch(e){
+    } catch (e) {
       console.error(`Unable to add recipe, ${e}`);
-      return response;
+      return { error: e };
     }
   }
 
-    //function to add recipe to user profile
-    static async addRecipeToProfile(userName, recipe) {
-      let response;
-      console.log(userName)
-      try {
-        response = await users.updateOne(
-          { userName: userName },
-          { $push: { bookmarks: recipe } }
-        )
-        console.log(response)
-        return response;
-      } catch (e) {
-        console.log(`Unable to add recipe, ${e}`)
-      }
-    }
-    
-  static async getIngredients(){
-    let response = {};
-    try{
-      response = await ingredients.distinct('item_name');
+  // Function to add recipe to user profile
+  static async addRecipeToProfile(userName, recipe) {
+    try {
+      const response = await users.updateOne(
+        { userName: userName },
+        { $push: { bookmarks: recipe } }
+      );
       return response;
-    }catch(e){
+    } catch (e) {
+      console.log(`Unable to add recipe to profile, ${e}`);
+      return { error: e };
+    }
+  }
+
+  // Function to get ingredients
+  static async getIngredients() {
+    try {
+      const response = await ingredients.distinct('item_name');
+      return response;
+    } catch (e) {
       console.error(`Unable to get ingredients, ${e}`);
-      return response;
+      return [];
     }
-  } 
+  }
 }
