@@ -4,6 +4,7 @@
 
 ![](Reciperec.gif)
 <br><br>
+
 <!--
 ## Watch how our application works:
 
@@ -11,6 +12,7 @@
 
 <br><br>
 -->
+
 [![Made With](https://img.shields.io/badge/made%20with-javascript-gree)](https://www.javascript.com/)
 [![DOI](https://zenodo.org/badge/706798373.svg)](https://zenodo.org/doi/10.5281/zenodo.10023534)
 [![GitHub issues open](https://img.shields.io/github/issues/ForkBombers/Recipe_Recommender)](https://github.com/ForkBombers/Recipe_Recommender/issues)

@@ -65,19 +65,15 @@ To contribute, please issue a pull request using the following procedure:
 You can contribute in the following ways to our code:
 
 - Start a discussion
-
   - Discuss any part of the code that you would like to talk about with a developer or fellow contributor. You can request previous phase developers for information on particular design or programming decisions or to help with any issues.
 
 - Add to the README
-
   - Add to the existing description of the layout of the repository. You can add a new section or improve an existing one. You're always welcome to add demos for particular functions as well!
 
 - Point out bugs
-
   - Point out any bugs that you notice while running our project. We request that you be specific to the best of your ability. You can also include steps to debug as objectives for the next phase!
 
 - Pull Requests
-
   - A pull request allows you to suggest changes to the code and lets you add in new stuff or change some of the older code in a branch.
 
 - Open an issue
